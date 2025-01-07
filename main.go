@@ -1,7 +1,7 @@
 package main
 
 import(
-	"blockchain.com/project/blockchain"
+	"DaanVeer/blockchain"
 )
 func main() {
 	blockchain := blockchain.NewBlockchain()
