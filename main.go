@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-
-	"blockchain.com/project/blockchain"
+	""
 )
 
 //Test for Blockchain And addition of transaction
