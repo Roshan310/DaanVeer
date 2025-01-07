@@ -17,6 +17,7 @@ type Block struct {
 	Timestamp    int64
 	Transactions []*Transactions
 	MerkleRoot   [32]byte
+	Signature	string
 }
 
 func NewBlock(previousHash [32]byte, transactions []*Transactions) *Block {
