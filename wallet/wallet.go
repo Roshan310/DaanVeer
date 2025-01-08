@@ -137,5 +137,6 @@ func GenerateWallet(filename string) (*Wallet, error) {
 		return nil, err
 	}
 
+	fmt.Printf("Your wallet is generated and here is your address %s\n", wallet.Address)
 	return wallet, nil
 }
