@@ -1,5 +1,8 @@
 # DaanVeer - Building blockchain from scratch
 
-## Minor project for sixth semester! 
 
-We will be building our own blockchain system and on top of that we will create a donation platform
+### Overview
+
+DaanVeer is a blockchain system built entirely from scratch, which will serve as the foundation for a transparent and decentralized donation platform.
+
+This project is part of our Minor Project for the Sixth Semester.
