@@ -1,4 +1,4 @@
-module DaanVeer
+module github.com/Roshan310/DaanVeer
 
 go 1.23.4
 
