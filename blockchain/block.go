@@ -25,9 +25,11 @@ func NewBlock(previousHash [32]byte, transactions []*Transactions) *Block {
 	b.Timestamp = time.Now().UnixNano()
 	b.PreviousHash = previousHash
 	b.Transactions = transactions
-	b.MerkleRoot = CalculateMerkleRoot(transactions)
+	merkleTree := NewMerkleTree(transactions)
+	b.MerkleRoot = merkleTree.CalculateMerkleRoot()
 	return b
 }
+
 
 func (b *Block) Print() {
 	fmt.Printf("Timestamp:       %d\n", b.Timestamp)
