@@ -55,33 +55,38 @@ import (
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // Test for Wallet
-func main(){
+	func main() {
 		// Specify the filename to save the wallet.
 		walletFile := "my_wallet.txt"
-
-		// Generate a new wallet if it doesn't already exist.
+	
+		// Generate a new wallet and save it to the file.
 		myWallet, err := wallet.GenerateWallet(walletFile)
 		if err != nil {
 			log.Fatalf("Failed to generate wallet: %v\n", err)
 		}
 	
-		// Display the wallet information.
+		// Display the newly generated wallet information.
+		fmt.Println("New Wallet:")
 		fmt.Println("Wallet Address:", myWallet.Address)
 		fmt.Printf("Public Key: %x\n", wallet.PublicKeyToBytes(myWallet.PublicKey))
 		fmt.Printf("Private Key: %x\n", myWallet.PrivateKey.D.Bytes())
 	
-		// Derive wallet keys from the saved wallet file.
-		loadedWallet := &wallet.Wallet{}
-		if err := loadedWallet.LoadFromFile(walletFile); err != nil {
-			log.Fatalf("Failed to load wallet: %v\n", err)
+		// Load all wallets from the file.
+		wallets, err := wallet.LoadAllWallets(walletFile)
+		if err != nil {
+			log.Fatalf("Failed to load wallets: %v\n", err)
 		}
 	
-		// Display the loaded wallet information.
-		fmt.Println("\nLoaded Wallet:")
-		fmt.Println("Wallet Address:", loadedWallet.Address)
-		fmt.Printf("Public Key: %x\n", wallet.PublicKeyToBytes(loadedWallet.PublicKey))
-		fmt.Printf("Private Key: %x\n", loadedWallet.PrivateKey.D.Bytes())
-}
+		// Display all loaded wallets.
+		fmt.Println("\nLoaded Wallets:")
+		for i, w := range wallets {
+			fmt.Printf("Wallet %d:\n", i+1)
+			fmt.Println("Wallet Address:", w.Address)
+			fmt.Printf("Public Key: %x\n", wallet.PublicKeyToBytes(w.PublicKey))
+			fmt.Printf("Private Key: %x\n\n", w.PrivateKey.D.Bytes())
+		}
+	}
+	
 
 
 

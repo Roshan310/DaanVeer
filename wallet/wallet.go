@@ -128,57 +128,126 @@ func calculateCheckSum(payload []byte) []byte {
 
 // 	return nil
 // }
+// func (w *Wallet) SaveToFile(fileName string) error {
+// 	// Serialize private key, public key, and address
+// 	data := fmt.Sprintf(
+// 		"%x\n%x\n%s",
+// 		w.PrivateKey.D.Bytes(),
+// 		PublicKeyToBytes(w.PublicKey),
+// 		w.Address,
+// 	)
+
+// 	// Write to file
+// 	return os.WriteFile(fileName, []byte(data), 0600)
+// }
+
+// func (w *Wallet) LoadFromFile(fileName string) error {
+// 	// Read file data
+// 	data, err := os.ReadFile(fileName)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	// Split file content into lines
+// 	lines := strings.Split(string(data), "\n")
+// 	if len(lines) < 3 {
+// 		return errors.New("invalid wallet file format")
+// 	}
+
+// 	// Parse private key
+// 	privKeyBytes, err := hex.DecodeString(lines[0])
+// 	if err != nil {
+// 		return fmt.Errorf("failed to parse private key: %v", err)
+// 	}
+// 	w.PrivateKey = new(ecdsa.PrivateKey)
+// 	w.PrivateKey.PublicKey.Curve = elliptic.P256()
+// 	w.PrivateKey.D = new(big.Int).SetBytes(privKeyBytes)
+// 	w.PrivateKey.PublicKey.X, w.PrivateKey.PublicKey.Y = elliptic.P256().ScalarBaseMult(privKeyBytes)
+
+// 	// Parse public key
+// 	pubKeyBytes, err := hex.DecodeString(lines[1])
+// 	if err != nil {
+// 		return fmt.Errorf("failed to parse public key: %v", err)
+// 	}
+// 	w.PublicKey, err = BytesToPublicKey(pubKeyBytes)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to reconstruct public key: %v", err)
+// 	}
+
+// 	// Parse address
+// 	w.Address = lines[2]
+
+// 	return nil
+// }
+
 func (w *Wallet) SaveToFile(fileName string) error {
 	// Serialize private key, public key, and address
 	data := fmt.Sprintf(
-		"%x\n%x\n%s",
+		"%x\n%x\n%s\n\n",
 		w.PrivateKey.D.Bytes(),
 		PublicKeyToBytes(w.PublicKey),
 		w.Address,
 	)
 
-	// Write to file
-	return os.WriteFile(fileName, []byte(data), 0600)
-}
-
-func (w *Wallet) LoadFromFile(fileName string) error {
-	// Read file data
-	data, err := os.ReadFile(fileName)
+	// Open the file in append mode
+	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
-	// Split file content into lines
-	lines := strings.Split(string(data), "\n")
-	if len(lines) < 3 {
-		return errors.New("invalid wallet file format")
-	}
-
-	// Parse private key
-	privKeyBytes, err := hex.DecodeString(lines[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse private key: %v", err)
-	}
-	w.PrivateKey = new(ecdsa.PrivateKey)
-	w.PrivateKey.PublicKey.Curve = elliptic.P256()
-	w.PrivateKey.D = new(big.Int).SetBytes(privKeyBytes)
-	w.PrivateKey.PublicKey.X, w.PrivateKey.PublicKey.Y = elliptic.P256().ScalarBaseMult(privKeyBytes)
-
-	// Parse public key
-	pubKeyBytes, err := hex.DecodeString(lines[1])
-	if err != nil {
-		return fmt.Errorf("failed to parse public key: %v", err)
-	}
-	w.PublicKey, err = BytesToPublicKey(pubKeyBytes)
-	if err != nil {
-		return fmt.Errorf("failed to reconstruct public key: %v", err)
-	}
-
-	// Parse address
-	w.Address = lines[2]
-
-	return nil
+	// Write the wallet data to the file
+	_, err = file.WriteString(data)
+	return err
 }
+
+func LoadAllWallets(fileName string) ([]*Wallet, error) {
+	// Read file data
+	data, err := os.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Split the file into individual wallet blocks
+	walletBlocks := strings.Split(strings.TrimSpace(string(data)), "\n\n")
+
+	var wallets []*Wallet
+	for _, block := range walletBlocks {
+		lines := strings.Split(block, "\n")
+		if len(lines) < 3 {
+			return nil, errors.New("invalid wallet block format")
+		}
+
+		// Parse each wallet
+		privKeyBytes, err := hex.DecodeString(lines[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %v", err)
+		}
+		pubKeyBytes, err := hex.DecodeString(lines[1])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key: %v", err)
+		}
+		address := lines[2]
+
+		// Construct wallet
+		wallet := &Wallet{}
+		wallet.PrivateKey = new(ecdsa.PrivateKey)
+		wallet.PrivateKey.PublicKey.Curve = elliptic.P256()
+		wallet.PrivateKey.D = new(big.Int).SetBytes(privKeyBytes)
+		wallet.PrivateKey.PublicKey.X, wallet.PrivateKey.PublicKey.Y = elliptic.P256().ScalarBaseMult(privKeyBytes)
+
+		wallet.PublicKey, err = BytesToPublicKey(pubKeyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reconstruct public key: %v", err)
+		}
+		wallet.Address = address
+
+		wallets = append(wallets, wallet)
+	}
+
+	return wallets, nil
+}
+
 
 
 func GenerateWallet(filename string) (*Wallet, error) {
