@@ -1,14 +1,19 @@
 package wallet
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"math/big"
+	"os"
+	"strings"
 
 	"github.com/mr-tron/base58"
 	"golang.org/x/crypto/ripemd160"
@@ -16,12 +21,13 @@ import (
 
 const (
 	CHECK_SUM_LENGTH = 4
+	ENCRYPTION_KEY   = "your-secure-32-byte-key-goes-here" // Replace this with your secure key
 )
 
 type Wallet struct {
 	PrivateKey *ecdsa.PrivateKey
-	PublicKey *ecdsa.PublicKey
-	Address string
+	PublicKey  *ecdsa.PublicKey
+	Address    string
 }
 
 func (w *Wallet) GenerateKeyPair() error {
@@ -41,7 +47,7 @@ func PublicKeyToBytes(publicKey *ecdsa.PublicKey) []byte {
 
 func BytesToPublicKey(pubKeyBytes []byte) (*ecdsa.PublicKey, error) {
 	curve := elliptic.P256()
-	keyLen := len(pubKeyBytes)/2
+	keyLen := len(pubKeyBytes) / 2
 	if keyLen == 0 {
 		return nil, errors.New("invalid bytes of public key")
 	}
@@ -55,37 +61,19 @@ func BytesToPublicKey(pubKeyBytes []byte) (*ecdsa.PublicKey, error) {
 	return &ecdsa.PublicKey{Curve: curve, X: x, Y: y}, nil
 }
 
-
 func PublicKeyHashRipeMD160(pubKey *ecdsa.PublicKey) []byte {
-
-	//Using SHA256 for hashing right here during RipeMD160 hash.
-	pubKeybytes := PublicKeyToBytes((pubKey))
-	pubKeyHash := sha256.Sum256(pubKeybytes)
-
-	//ripemd160 maintains internal state for the hash so, creating a new object.
+	pubKeyBytes := PublicKeyToBytes(pubKey)
+	pubKeyHash := sha256.Sum256(pubKeyBytes)
 	ripeMDHasher := ripemd160.New()
 	_, _ = ripeMDHasher.Write(pubKeyHash[:])
 	return ripeMDHasher.Sum(nil)
 }
 
 func GenerateAddress(publicKey *ecdsa.PublicKey) string {
-
-	//	The address generation process simply follows the following steps:
-	//		1. Hash the public key using sha256.
-	//		2. Use RipeMD160 hash to convert it to 160 bits.
-	//		3. Add checkSum error code
-	//		4. Append the public key hash and checksum code
-	//		5. Encode using base 58 to get the address
-
 	publicKeyHash := PublicKeyHashRipeMD160(publicKey)
-	 
-	//here we can add version number as like in bitcoin address but we are not doing that for now
 	checkSum := calculateCheckSum(publicKeyHash)
 	finalHash := append(publicKeyHash, checkSum...)
-	address := base58.Encode(finalHash)
-
-	return address
-
+	return base58.Encode(finalHash)
 }
 
 func calculateCheckSum(payload []byte) []byte {
@@ -94,37 +82,130 @@ func calculateCheckSum(payload []byte) []byte {
 	return secondHash[:CHECK_SUM_LENGTH]
 }
 
+// AES Encryption
+func encrypt(data, passphrase string) (string, error) {
+	key := sha256.Sum256([]byte(passphrase))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return "", err
+	}
 
-func (w *Wallet) SaveToFile(fileName string) error {
-	data := fmt.Sprintf("%x\n%s\n%s", w.PrivateKey.D.Bytes(), PublicKeyToBytes(w.PublicKey), w.Address)
+	ciphertext := make([]byte, aes.BlockSize+len(data))
+	iv := ciphertext[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return "", err
+	}
 
-	return os.WriteFile(fileName, []byte(data), 0600)
+	stream := cipher.NewCFBEncrypter(block, iv)
+	stream.XORKeyStream(ciphertext[aes.BlockSize:], []byte(data))
+
+	return hex.EncodeToString(ciphertext), nil
 }
 
-func (w *Wallet) LoadFromFile(fileName string) error {
-	data, err := os.ReadFile(fileName)
+// AES Decryption
+func decrypt(data, passphrase string) (string, error) {
+	key := sha256.Sum256([]byte(passphrase))
+	ciphertext, err := hex.DecodeString(data)
+	if err != nil {
+		return "", err
+	}
 
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return "", err
+	}
+
+	if len(ciphertext) < aes.BlockSize {
+		return "", errors.New("ciphertext too short")
+	}
+	iv := ciphertext[:aes.BlockSize]
+	ciphertext = ciphertext[aes.BlockSize:]
+
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(ciphertext, ciphertext)
+
+	return string(ciphertext), nil
+}
+
+func (w *Wallet) SaveToFile(fileName string) error {
+	// Serialize private key, public key, and address
+	data := fmt.Sprintf(
+		"%x\n%x\n%s",
+		w.PrivateKey.D.Bytes(),
+		PublicKeyToBytes(w.PublicKey),
+		w.Address,
+	)
+
+	// Encrypt data
+	encryptedData, err := encrypt(data, ENCRYPTION_KEY)
 	if err != nil {
 		return err
 	}
 
-	var privKeyBytes []byte
-	var pubKeyBytes []byte
-	fmt.Sscanf(string(data), "%x\n%s\n%s", &privKeyBytes, &pubKeyBytes, &w.Address)
-
-	//Here, we reconstruct the private key from its bytes
-	w.PrivateKey = new(ecdsa.PrivateKey)
-	w.PrivateKey.PublicKey.Curve = elliptic.P256()
-	w.PrivateKey.D = new(big.Int).SetBytes(privKeyBytes)
-	w.PrivateKey.PublicKey.X, w.PrivateKey.PublicKey.Y = elliptic.P256().ScalarBaseMult(privKeyBytes)
-
-	//Now, reconstructing the public key
-	w.PublicKey, err = BytesToPublicKey(pubKeyBytes)
+	// Open the file in append mode
+	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
-	}	
+	}
+	defer file.Close()
 
-	return nil
+	// Write the encrypted wallet data to the file
+	_, err = file.WriteString(encryptedData + "\n\n")
+	return err
+}
+
+func LoadAllWallets(fileName string) ([]*Wallet, error) {
+	// Read file data
+	data, err := os.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Split the file into encrypted wallet blocks
+	encryptedBlocks := strings.Split(strings.TrimSpace(string(data)), "\n\n")
+
+	var wallets []*Wallet
+	for _, block := range encryptedBlocks {
+		// Decrypt the wallet block
+		decryptedData, err := decrypt(block, ENCRYPTION_KEY)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt wallet: %v", err)
+		}
+
+		// Split the decrypted data into lines
+		lines := strings.Split(decryptedData, "\n")
+		if len(lines) < 3 {
+			return nil, errors.New("invalid wallet block format")
+		}
+
+		// Parse the wallet
+		privKeyBytes, err := hex.DecodeString(lines[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %v", err)
+		}
+		pubKeyBytes, err := hex.DecodeString(lines[1])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key: %v", err)
+		}
+		address := lines[2]
+
+		// Construct wallet
+		wallet := &Wallet{}
+		wallet.PrivateKey = new(ecdsa.PrivateKey)
+		wallet.PrivateKey.PublicKey.Curve = elliptic.P256()
+		wallet.PrivateKey.D = new(big.Int).SetBytes(privKeyBytes)
+		wallet.PrivateKey.PublicKey.X, wallet.PrivateKey.PublicKey.Y = elliptic.P256().ScalarBaseMult(privKeyBytes)
+
+		wallet.PublicKey, err = BytesToPublicKey(pubKeyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reconstruct public key: %v", err)
+		}
+		wallet.Address = address
+
+		wallets = append(wallets, wallet)
+	}
+
+	return wallets, nil
 }
 
 func GenerateWallet(filename string) (*Wallet, error) {
