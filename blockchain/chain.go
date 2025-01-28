@@ -5,7 +5,7 @@ import(
 	"strings"
 )
 type Blockchain struct {
-	TransactionPool []*Transactions
+	TransactionPool []Transactions
 	Chain           []*Block
 }
 
@@ -20,9 +20,9 @@ func (bc *Blockchain) LastBlock() *Block {
 	return bc.Chain[len(bc.Chain)-1]
 }
 
-func (bc *Blockchain) AddTransaction(sender string, recipient string, value float32) {
+func (bc *Blockchain) AddTransaction(sender []byte, recipient []byte, value float32) {
 	t := NewTransaction(sender, recipient, value)
-	bc.TransactionPool = append(bc.TransactionPool, t)
+	bc.TransactionPool = append(bc.TransactionPool, *t)
 }
 
 func (bc *Blockchain) Print() {
@@ -33,9 +33,9 @@ func (bc *Blockchain) Print() {
 	fmt.Printf("%s\n", strings.Repeat("*", 25))
 }
 
-func (bc *Blockchain) CreateBlock(previousHash [32]byte) *Block {
+func (bc *Blockchain) CreateBlock(previousHash []byte) *Block {
 	b := NewBlock(previousHash, bc.TransactionPool)
 	bc.Chain = append(bc.Chain, b)
-	bc.TransactionPool = []*Transactions{}
+	bc.TransactionPool = []Transactions{}
 	return b
 }
