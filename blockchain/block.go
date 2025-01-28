@@ -13,14 +13,15 @@ func init() {
 }
 
 type Block struct {
-	PreviousHash [32]byte
+	PreviousHash []byte
 	Timestamp    int64
-	Transactions []*Transactions
-	MerkleRoot   [32]byte
+	Transactions []Transactions
+	MerkleRoot   []byte
 	Signature	string
+	TxMerkleTree *MerkleTree
 }
 
-func NewBlock(previousHash [32]byte, transactions []*Transactions) *Block {
+func NewBlock(previousHash []byte, transactions []Transactions) *Block {
 	b := new(Block)
 	b.Timestamp = time.Now().UnixNano()
 	b.PreviousHash = previousHash
@@ -40,18 +41,22 @@ func (b *Block) Print() {
 	}
 }
 
-func (b *Block) Hash() [32]byte {
-	m, _ := json.Marshal(b)
+func (b *Block) Hash() []byte {
+	m, err := json.Marshal(b)
+	if err != nil {
+		fmt.Println("Error while marshalling!!!")
+	}
 	fmt.Println(string(m))
-	return sha256.Sum256(m)
+	hash := sha256.Sum256(m)
+	return hash[:]
 }
 
 func (b *Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Timestamp    int64          `json:"timestamp"`
-		PreviousHash [32]byte       `json:"previous_hash"`
-		MerkleRoot   [32]byte       `json:"merkle_root"`
-		Transactions []*Transactions `json:"transactions"`
+		PreviousHash []byte       `json:"previous_hash"`
+		MerkleRoot   []byte       `json:"merkle_root"`
+		Transactions []Transactions `json:"transactions"`
 	}{
 		Timestamp:    b.Timestamp,
 		PreviousHash: b.PreviousHash,
@@ -60,3 +65,9 @@ func (b *Block) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (b *Block) AddTxToBlock(txPool []Transactions) error {
+	var tree *MerkleTree
+	tree = NewMerkleTree(txPool)
+	b.TxMerkleTree = tree 
+	return nil
+}
