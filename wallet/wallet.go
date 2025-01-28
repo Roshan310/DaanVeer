@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"bytes"
 
 	"github.com/mr-tron/base58"
 	"golang.org/x/crypto/ripemd160"
@@ -21,7 +22,7 @@ import (
 
 const (
 	CHECK_SUM_LENGTH = 4
-	ENCRYPTION_KEY   = "your-secure-32-byte-key-goes-here" // Replace this with your secure key
+	ENCRYPTION_KEY   = "my-secure-32-byte-key" 
 )
 
 type Wallet struct {
@@ -41,7 +42,7 @@ func (w *Wallet) GenerateKeyPair() error {
 	return nil
 }
 
-func PublicKeyToBytes(publicKey *ecdsa.PublicKey) []byte {
+func PublicKeyToBytes(publicKey *ecdsa.PublicKey) ([]byte) {
 	return append(publicKey.X.Bytes(), publicKey.Y.Bytes()...)
 }
 
@@ -220,4 +221,19 @@ func GenerateWallet(filename string) (*Wallet, error) {
 
 	fmt.Printf("Your wallet is generated and here is your address %s\n", wallet.Address)
 	return wallet, nil
+}
+
+func PubKeyFromAddress(address string) ([]byte, error) {
+	checksumHash, err := base58.Decode(address)
+	if err != nil {
+		return nil, err
+	}
+	checksumOffset := len(checksumHash) - CHECK_SUM_LENGTH
+	actualChecksum := checksumHash[checksumOffset:]
+	pubKeyHash := checksumHash[0:checksumOffset]
+	targetChecksum := calculateCheckSum(pubKeyHash)
+	if bytes.Equal(actualChecksum, targetChecksum) {
+		return pubKeyHash, nil
+	}
+	return nil, errors.New("this is not a valid address!!!!")
 }

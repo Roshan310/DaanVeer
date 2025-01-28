@@ -1,26 +1,39 @@
 package blockchain
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"fmt"
 )
 
-// Transaction represents a transaction structure (example placeholder).
+
 type Transaction struct {
 	Data string
 }
 
 // Hash computes the SHA-256 hash of a transaction's data.
-func (t *Transaction) Hash() [32]byte {
-	return sha256.Sum256([]byte(t.Data))
-}
+// func (t *Transaction) Hash() []byte {
+// 	return sha256.Sum256([]byte(t.Data))
+// }
 
 // MerkleNode represents a node in the Merkle tree.
 type MerkleNode struct {
 	Left  *MerkleNode
 	Right *MerkleNode
-	Hash  [32]byte
+	Hash  []byte
 }
 
+
+func (node *MerkleNode) Print()  {
+
+	if node == nil{
+		return
+	}
+	fmt.Printf("%x\n", node.Hash)
+	node.Left.Print()
+	node.Right.Print()
+	
+}
 // MerkleTree represents the entire Merkle tree.
 type MerkleTree struct {
 	Root  *MerkleNode
@@ -28,13 +41,14 @@ type MerkleTree struct {
 }
 
 // NewMerkleNode creates a new Merkle node from two child nodes or a single transaction.
-func NewMerkleNode(left, right *MerkleNode, hash [32]byte) *MerkleNode {
-	var nodeHash [32]byte
+func NewMerkleNode(left, right *MerkleNode, hash []byte) *MerkleNode {
+	var nodeHash []byte
 	if left == nil && right == nil {
 		nodeHash = hash
 	} else {
 		data := append(left.Hash[:], right.Hash[:]...)
-		nodeHash = sha256.Sum256(data)
+		tempHash := sha256.Sum256(data)
+		nodeHash = tempHash[:]
 	}
 
 	return &MerkleNode{
@@ -45,7 +59,7 @@ func NewMerkleNode(left, right *MerkleNode, hash [32]byte) *MerkleNode {
 }
 
 // NewMerkleTree constructs a Merkle tree from a list of transactions.
-func NewMerkleTree(transactions []*Transactions) *MerkleTree {
+func NewMerkleTree(transactions []Transactions) *MerkleTree {
 	if len(transactions) == 0 {
 		return &MerkleTree{Root: nil}
 	}
@@ -65,7 +79,7 @@ func NewMerkleTree(transactions []*Transactions) *MerkleTree {
 
 		var newLevel []*MerkleNode
 		for i := 0; i < len(nodes); i += 2 {
-			newNode := NewMerkleNode(nodes[i], nodes[i+1], [32]byte{})
+			newNode := NewMerkleNode(nodes[i], nodes[i+1], []byte{})
 			newLevel = append(newLevel, newNode)
 		}
 		nodes = newLevel
@@ -76,21 +90,21 @@ func NewMerkleTree(transactions []*Transactions) *MerkleTree {
 }
 
 // CalculateMerkleRoot extracts the Merkle root from the tree.
-func (mt *MerkleTree) CalculateMerkleRoot() [32]byte {
+func (mt *MerkleTree) CalculateMerkleRoot() []byte {
 	if mt.Root == nil {
-		return [32]byte{}
+		return []byte{}
 	}
 	return mt.Root.Hash
 }
 
 // GenerateMerkleProof generates a Merkle proof for a given transaction hash.
-func (mt *MerkleTree) GenerateMerkleProof(txHash [32]byte) ([][32]byte, bool) {
-	var proof [][32]byte
+func (mt *MerkleTree) GenerateMerkleProof(txHash []byte) ([]byte, bool) {
+	var proof []byte
 	var targetNode *MerkleNode
 
 	// Find the node corresponding to the transaction hash.
 	for _, node := range mt.Nodes {
-		if node.Left == nil && node.Right == nil && node.Hash == txHash {
+		if node.Left == nil && node.Right == nil && bytes.Equal(node.Hash, txHash) {
 			targetNode = node
 			break
 		}
@@ -109,9 +123,9 @@ func (mt *MerkleTree) GenerateMerkleProof(txHash [32]byte) ([][32]byte, bool) {
 		}
 
 		if parentNode.Left == currentNode {
-			proof = append(proof, parentNode.Right.Hash)
+			proof = append(proof, parentNode.Right.Hash...)
 		} else {
-			proof = append(proof, parentNode.Left.Hash)
+			proof = append(proof, parentNode.Left.Hash...)
 		}
 
 		currentNode = parentNode
