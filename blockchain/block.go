@@ -7,14 +7,18 @@ import (
 	"log"
 	"time"
 )
-
+const (
+	GENESIS_STRING = "THIS IS THE FIRST BLOCK"
+)
 func init() {
 	log.SetPrefix("Blockchain: ")
 }
 
 type Block struct {
 	PreviousHash []byte
-	Timestamp    int64
+	Timestamp    uint64
+	BlockHash []byte
+	Height uint64
 	Transactions []Transactions
 	MerkleRoot   []byte
 	Signature	string
@@ -23,7 +27,7 @@ type Block struct {
 
 func NewBlock(previousHash []byte, transactions []Transactions) *Block {
 	b := new(Block)
-	b.Timestamp = time.Now().UnixNano()
+	b.Timestamp = uint64(time.Now().UnixNano())
 	b.PreviousHash = previousHash
 	b.Transactions = transactions
 	merkleTree := NewMerkleTree(transactions)
@@ -53,7 +57,7 @@ func (b *Block) Hash() []byte {
 
 func (b *Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Timestamp    int64          `json:"timestamp"`
+		Timestamp    uint64          `json:"timestamp"`
 		PreviousHash []byte       `json:"previous_hash"`
 		MerkleRoot   []byte       `json:"merkle_root"`
 		Transactions []Transactions `json:"transactions"`
@@ -71,3 +75,4 @@ func (b *Block) AddTxToBlock(txPool []Transactions) error {
 	b.TxMerkleTree = tree 
 	return nil
 }
+
